@@ -36,6 +36,7 @@ public class ProgramPrinter implements JythonListener {
     @Override
     public void enterProgram(JythonParser.ProgramContext ctx) {
         newLine("program start{");
+        newLine(ctx.getStart().getLine());
         tab();
 
     }
@@ -49,6 +50,8 @@ public class ProgramPrinter implements JythonListener {
     @Override
     public void enterImportclass(JythonParser.ImportclassContext ctx) {
         newLine("import class : " + ctx.CLASSNAME());
+        newLine(ctx.getStart().getLine());
+
     }
 
     @Override
@@ -69,6 +72,8 @@ public class ProgramPrinter implements JythonListener {
             }
             sameLine("{");
         }
+        newLine(ctx.getStart().getLine());
+
         tab();
     }
 

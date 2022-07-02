@@ -39,7 +39,7 @@ public class SymbolTableGenerator implements JythonListener {
 
     @Override
     public void exitImportclass(JythonParser.ImportclassContext ctx) {
-        currentImport=null;
+        currentImport = null;
     }
 
     @Override
@@ -54,12 +54,31 @@ public class SymbolTableGenerator implements JythonListener {
     @Override
     public void exitClassDef(JythonParser.ClassDefContext ctx) {
         currentClass.printScope();
-        currentClass=null;
+        currentClass = null;
     }
 
     @Override
     public void enterClass_body(JythonParser.Class_bodyContext ctx) {
+        ClassField classField = null;
+        ClassArrayField classArrayField = null;
+        if (ctx.varDec() != null) {
+            if (ctx.varDec().varType == null) {
+                classField = new ClassField(ctx.varDec().varId.getText(), ctx.varDec().varClassName.getText(), true);
+            } else {
+                classField = new ClassField(ctx.varDec().varId.getText(), ctx.varDec().varType.getText(), true);
+            }
+            currentClass.insert("Field_" + ctx.varDec().varId.getText(), classField);
+        } else if (ctx.arrayDec() != null) {
+            if (ctx.arrayDec().arrType == null) {
+                classArrayField = new ClassArrayField(ctx.arrayDec().arrId.getText(), ctx.arrayDec().arrClassName.getText(), false);
+            } else {
+                classArrayField = new ClassArrayField(ctx.arrayDec().arrId.getText(), ctx.arrayDec().arrType.getText(), false);
+            }
+            currentClass.insert("Field_" + ctx.arrayDec().arrId.getText(), classArrayField);
+        } else if (ctx.constructor() != null) {
 
+
+        }
     }
 
     @Override
@@ -70,6 +89,18 @@ public class SymbolTableGenerator implements JythonListener {
     @Override
     public void enterVarDec(JythonParser.VarDecContext ctx) {
 //            var field = new Field()
+        //todo az koja befahmam kodom no var e ?
+
+//        ClassField classField = null;
+//        if (currentClass != null) {
+//            if (ctx.varType == null) {
+//                classField = new ClassField(ctx.varId.getText(), ctx.varClassName.getText(), false);
+//            } else {
+//                classField = new ClassField(ctx.varId.getText(), ctx.varType.getText(), false);
+//            }
+//            currentClass.insert("Field_" + ctx.varId.getText(), classField);
+//        }
+
     }
 
     @Override
@@ -99,7 +130,20 @@ public class SymbolTableGenerator implements JythonListener {
 
     @Override
     public void enterConstructor(JythonParser.ConstructorContext ctx) {
+        String className = "";
+        if (ctx.CLASSNAME() != null) {
+            className = ctx.CLASSNAME().getText();
+        } else if (ctx.TYPE() != null) {
+            className = ctx.TYPE().getText();
 
+        }
+        var constructor = new Constructor(className);
+        for (int i = 0; i < ctx.parameter().size(); i++) {
+            if (ctx.parameter(i).varDec(0).varType == null)
+                constructor.addParameter(new MethodField(ctx.parameter(i).varDec(0).varId.getText(), ctx.parameter(i).varDec(0).varClassName.getText(), i));
+            else
+                constructor.addParameter(new MethodField(ctx.parameter(i).varDec(0).varId.getText(), ctx.parameter(i).varDec(0).varType.getText(), i));
+        } currentClass.insert("Constructor_" + className, constructor);
     }
 
     @Override
@@ -109,7 +153,12 @@ public class SymbolTableGenerator implements JythonListener {
 
     @Override
     public void enterParameter(JythonParser.ParameterContext ctx) {
-
+        var id = "Field_" + ctx.varDec(0); //TODO REFACTOR
+//        if (currentClass != null) {
+//            if (currentClass.lookup(id).isPresent()) {
+//                currentClass.remove(id);
+//            }
+//        }
     }
 
     @Override

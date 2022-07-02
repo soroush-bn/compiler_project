@@ -10,6 +10,9 @@ public class Scope {
     public void insert(String id, Item item) {
         symbolTable.put(id, item);
     }
+    public void remove(String id) {
+        symbolTable.remove(id);
+    }
 
     public Optional<Item> lookup(String id) {
         return symbolTable.keySet().stream().filter(key -> key.matches(id + "_\\d+_\\d+")).map(symbolTable::get).findFirst();
@@ -28,8 +31,6 @@ public class Scope {
 
     public void printItems() {
         //todo refactor
-        var result = "";
-        var stack = new Stack<Item>();
         var scopes = new LinkedList<Scope>();
         scopes.push(this);
         System.out.println();
@@ -37,8 +38,7 @@ public class Scope {
             var scope = scopes.pop();
             scope.symbolTable.forEach((k, item) -> {
                 System.out.println(item);
-                stack.push(item);
-                if (item instanceof Scope newScope) scopes.add(newScope);
+//                if (item instanceof Scope newScope) scopes.add(newScope);
             });
             System.out.println();
 

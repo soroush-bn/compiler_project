@@ -1,6 +1,6 @@
 package items;
 
-public sealed class Variable implements Item permits Field, ClassField, ClassArrayField,MethodField {
+public sealed class Variable implements Item permits Parameter, ClassField, ClassArrayField,MethodField {
     protected final String name;
 
     public Variable(String name) {

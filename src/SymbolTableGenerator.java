@@ -12,6 +12,8 @@ public class SymbolTableGenerator implements JythonListener {
     private Class currentClass;
     private Import currentImport;
     private Method currentMethod;
+    private Constructor currentConstructor;
+
     private Block currentBlock;
 
     private final String finalResult = "";
@@ -120,12 +122,39 @@ public class SymbolTableGenerator implements JythonListener {
 
     @Override
     public void enterMethodDec(JythonParser.MethodDecContext ctx) {
+        if (ctx.methodType != null) currentMethod = new Method(ctx.methodId.getText(), ctx.methodType.getText());
+        else currentMethod = new Method(ctx.methodId.getText(), ctx.VOID().getText());
+        currentMethod.scopeNumber = ctx.start.getLine();
+        for (JythonParser.ParameterContext p : ctx.parameter()) {
+            for (int i = 0; i < p.varDec().size(); i++) {
+                if (p.varDec(i).varType == null)
+                    currentMethod.addParameter(new Parameter(p.varDec(i).varId.getText(), p.varDec(i).varClassName.getText(), true, i));
+                else
+                    currentMethod.addParameter(new Parameter(p.varDec(i).varId.getText(), p.varDec(i).varType.getText(), true, i));
+            }
+        }
+
+        for (int j = 0; j < ctx.statement().size(); j++) {
+            if (ctx.statement(j).varDec() != null) {
+                if (ctx.statement(j).varDec().varType == null) {
+                    currentMethod.addMethodField(new MethodField(ctx.statement(j).varDec().varId.getText(), ctx.statement(j).varDec().varClassName.getText(), true));
+                } else {
+                    currentMethod.addMethodField(new MethodField(ctx.statement(j).varDec().varId.getText(), ctx.statement(j).varDec().varType.getText(), true));
+                }
+            }
+        }
+
+
+        if (currentClass != null) {
+            currentClass.insert("Method_" + ctx.methodId, currentMethod);
+        }
 
     }
 
     @Override
     public void exitMethodDec(JythonParser.MethodDecContext ctx) {
-
+        currentMethod.printScope();
+        currentMethod = null;
     }
 
     @Override
@@ -137,28 +166,29 @@ public class SymbolTableGenerator implements JythonListener {
             className = ctx.TYPE().getText();
 
         }
-        var constructor = new Constructor(className);
-        for (int i = 0; i < ctx.parameter().size(); i++) {
-            if (ctx.parameter(i).varDec(0).varType == null)
-                constructor.addParameter(new MethodField(ctx.parameter(i).varDec(0).varId.getText(), ctx.parameter(i).varDec(0).varClassName.getText(), i));
-            else
-                constructor.addParameter(new MethodField(ctx.parameter(i).varDec(0).varId.getText(), ctx.parameter(i).varDec(0).varType.getText(), i));
-        } currentClass.insert("Constructor_" + className, constructor);
+        currentConstructor = new Constructor(className);
+        for (JythonParser.ParameterContext p : ctx.parameter()) {
+            for (int i = 0; i < p.varDec().size(); i++) {
+                if (p.varDec(i).varType == null)
+                    currentConstructor.addParameter(new Parameter(p.varDec(i).varId.getText(), p.varDec(i).varClassName.getText(), true, i));
+                else
+                    currentConstructor.addParameter(new Parameter(p.varDec(i).varId.getText(), p.varDec(i).varType.getText(), true, i));
+            }
+        }
+        currentConstructor.scopeNumber = ctx.start.getLine();
+        currentClass.insert("Constructor_" + className, currentConstructor);
     }
 
     @Override
     public void exitConstructor(JythonParser.ConstructorContext ctx) {
-
+        currentConstructor.printScope();
+        currentConstructor = null;
     }
 
     @Override
     public void enterParameter(JythonParser.ParameterContext ctx) {
         var id = "Field_" + ctx.varDec(0); //TODO REFACTOR
-//        if (currentClass != null) {
-//            if (currentClass.lookup(id).isPresent()) {
-//                currentClass.remove(id);
-//            }
-//        }
+
     }
 
     @Override

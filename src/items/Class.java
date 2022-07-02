@@ -3,7 +3,7 @@ package items;
 import java.util.ArrayList;
 
 public final class Class extends Scope implements Item {
-    private final ArrayList<Field> fields = new ArrayList<>();
+    private final ArrayList<ClassField> classFields = new ArrayList<>();
     private final ArrayList<Method> methods = new ArrayList<>();
 
     private final String parent;
@@ -14,8 +14,8 @@ public final class Class extends Scope implements Item {
         this.parent = parent;
     }
 
-    public void addField(Field field) {
-        fields.add(field);
+    public void addField(ClassField field) {
+        classFields.add(field);
     }
 
     public void addMethod(Method method) {

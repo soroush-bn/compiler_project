@@ -4,22 +4,23 @@ import java.util.ArrayList;
 
 public final class Constructor extends Scope implements Item {
 
-    private final String name;
-    private final ArrayList<MethodField> parameters = new ArrayList<>();
+    private final ArrayList<Parameter> parameters = new ArrayList<>();
 
     public Constructor(String name) {
-        this.name = name;
+        super.name=name;
     }
 
-    public void addParameter(MethodField parameter) {
+    public void addParameter(Parameter parameter) {
         parameters.add(parameter);
+        this.insert("Method_"+parameter.name,parameter);
+
     }
 
     private String getParams() {
         var res = "";
-        for (MethodField mf : parameters
+        for (Parameter p : parameters
         ) {
-            res += mf.show();
+            res += p.show();
 
         }
         return res;

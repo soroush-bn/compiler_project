@@ -8,10 +8,6 @@ class Human(Nothing, Nothing2){
     int calories
     bool isHungry
 
-    def Ali main(){
-
-    }
-
     def Human(Nose n, Ali a, int a){
         self.nose = n
     }

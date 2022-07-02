@@ -6,6 +6,8 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ErrorNode;
 import org.antlr.v4.runtime.tree.TerminalNode;
 
+import java.util.ArrayList;
+
 public class SymbolTableGenerator implements JythonListener {
 
     private final Scope globalScope = new Scope();
@@ -14,12 +16,19 @@ public class SymbolTableGenerator implements JythonListener {
     private Method currentMethod;
     private Constructor currentConstructor;
 
-    private Block currentBlock;
+    private ConditionalBlock currentConditionalBlock;
+    private Nested currentNested;
 
     private final String finalResult = "";
+    private final ArrayList<String> isDefiend = new ArrayList<>();
+
 
     @Override
     public void enterProgram(JythonParser.ProgramContext ctx) {
+        isDefiend.add("int");
+        isDefiend.add("float");
+        isDefiend.add("bool");
+        isDefiend.add("string");
         globalScope.name = "program";
         globalScope.scopeNumber = ctx.start.getLine();
 
@@ -34,6 +43,7 @@ public class SymbolTableGenerator implements JythonListener {
     @Override
     public void enterImportclass(JythonParser.ImportclassContext ctx) {
         currentImport = new Import(ctx.CLASSNAME().getText());
+        isDefiend.add(ctx.CLASSNAME().getText());
         globalScope.insert("import_" + ctx.CLASSNAME().getText(), currentImport);
 
 
@@ -47,6 +57,7 @@ public class SymbolTableGenerator implements JythonListener {
     @Override
     public void enterClassDef(JythonParser.ClassDefContext ctx) {
         currentClass = new Class(ctx.className.getText(), ctx.classParent.getText() + "," + ctx.classParent2.getText());
+        isDefiend.add(ctx.className.getText());
         currentClass.scopeNumber = ctx.start.getLine();
         var id = "class_" + ctx.className.getText();
         globalScope.insert(id, currentClass);
@@ -65,16 +76,16 @@ public class SymbolTableGenerator implements JythonListener {
         ClassArrayField classArrayField = null;
         if (ctx.varDec() != null) {
             if (ctx.varDec().varType == null) {
-                classField = new ClassField(ctx.varDec().varId.getText(), ctx.varDec().varClassName.getText(), true);
+                classField = new ClassField(ctx.varDec().varId.getText(), ctx.varDec().varClassName.getText(), isDefiend.contains(ctx.varDec().varClassName.getText()));
             } else {
-                classField = new ClassField(ctx.varDec().varId.getText(), ctx.varDec().varType.getText(), true);
+                classField = new ClassField(ctx.varDec().varId.getText(), ctx.varDec().varType.getText(), isDefiend.contains(ctx.varDec().varType.getText()));
             }
             currentClass.insert("Field_" + ctx.varDec().varId.getText(), classField);
         } else if (ctx.arrayDec() != null) {
             if (ctx.arrayDec().arrType == null) {
-                classArrayField = new ClassArrayField(ctx.arrayDec().arrId.getText(), ctx.arrayDec().arrClassName.getText(), false);
+                classArrayField = new ClassArrayField(ctx.arrayDec().arrId.getText(), ctx.arrayDec().arrClassName.getText(), isDefiend.contains(ctx.arrayDec().arrClassName.getText()));
             } else {
-                classArrayField = new ClassArrayField(ctx.arrayDec().arrId.getText(), ctx.arrayDec().arrType.getText(), false);
+                classArrayField = new ClassArrayField(ctx.arrayDec().arrId.getText(), ctx.arrayDec().arrType.getText(), isDefiend.contains(ctx.arrayDec().arrType.getText()));
             }
             currentClass.insert("Field_" + ctx.arrayDec().arrId.getText(), classArrayField);
         } else if (ctx.constructor() != null) {
@@ -91,8 +102,10 @@ public class SymbolTableGenerator implements JythonListener {
     @Override
     public void enterVarDec(JythonParser.VarDecContext ctx) {
 //            var field = new Field()
-        //todo az koja befahmam kodom no var e ?
-
+        //todo az koja befahmam kodom n o var e ?
+        if (ctx.varType != null) {
+            isDefiend.add(ctx.varType.getText());
+        }
 //        ClassField classField = null;
 //        if (currentClass != null) {
 //            if (ctx.varType == null) {
@@ -128,18 +141,18 @@ public class SymbolTableGenerator implements JythonListener {
         for (JythonParser.ParameterContext p : ctx.parameter()) {
             for (int i = 0; i < p.varDec().size(); i++) {
                 if (p.varDec(i).varType == null)
-                    currentMethod.addParameter(new Parameter(p.varDec(i).varId.getText(), p.varDec(i).varClassName.getText(), true, i));
+                    currentMethod.addParameter(new Parameter(p.varDec(i).varId.getText(), p.varDec(i).varClassName.getText(), isDefiend.contains(p.varDec(i).varClassName.getText()), i));
                 else
-                    currentMethod.addParameter(new Parameter(p.varDec(i).varId.getText(), p.varDec(i).varType.getText(), true, i));
+                    currentMethod.addParameter(new Parameter(p.varDec(i).varId.getText(), p.varDec(i).varType.getText(), isDefiend.contains(p.varDec(i).varType.getText()), i));
             }
         }
 
         for (int j = 0; j < ctx.statement().size(); j++) {
             if (ctx.statement(j).varDec() != null) {
                 if (ctx.statement(j).varDec().varType == null) {
-                    currentMethod.addMethodField(new MethodField(ctx.statement(j).varDec().varId.getText(), ctx.statement(j).varDec().varClassName.getText(), true));
+                    currentMethod.addMethodField(new MethodField(ctx.statement(j).varDec().varId.getText(), ctx.statement(j).varDec().varClassName.getText(), isDefiend.contains(ctx.statement(j).varDec().varClassName.getText())));
                 } else {
-                    currentMethod.addMethodField(new MethodField(ctx.statement(j).varDec().varId.getText(), ctx.statement(j).varDec().varType.getText(), true));
+                    currentMethod.addMethodField(new MethodField(ctx.statement(j).varDec().varId.getText(), ctx.statement(j).varDec().varType.getText(), isDefiend.contains(ctx.statement(j).varDec().varType.getText())));
                 }
             }
         }
@@ -170,9 +183,9 @@ public class SymbolTableGenerator implements JythonListener {
         for (JythonParser.ParameterContext p : ctx.parameter()) {
             for (int i = 0; i < p.varDec().size(); i++) {
                 if (p.varDec(i).varType == null)
-                    currentConstructor.addParameter(new Parameter(p.varDec(i).varId.getText(), p.varDec(i).varClassName.getText(), true, i));
+                    currentConstructor.addParameter(new Parameter(p.varDec(i).varId.getText(), p.varDec(i).varClassName.getText(), isDefiend.contains(p.varDec(i).varClassName.getText()), i));
                 else
-                    currentConstructor.addParameter(new Parameter(p.varDec(i).varId.getText(), p.varDec(i).varType.getText(), true, i));
+                    currentConstructor.addParameter(new Parameter(p.varDec(i).varId.getText(), p.varDec(i).varType.getText(), isDefiend.contains(p.varDec(i).varType.getText()), i));
             }
         }
         currentConstructor.scopeNumber = ctx.start.getLine();
@@ -198,11 +211,57 @@ public class SymbolTableGenerator implements JythonListener {
 
     @Override
     public void enterStatement(JythonParser.StatementContext ctx) {
+        if (currentConditionalBlock != null) { //it is nested
+            if (ctx.if_statment() != null) {
+                currentNested = new Nested(ctx.if_statment().getText());
+                currentNested.scopeNumber = ctx.start.getLine();
+                for (int j = 0; j < ctx.if_statment().statement().size(); j++) {
+                    if (ctx.if_statment().statement(j).varDec() != null) {
+                        if (ctx.if_statment().statement(j).varDec().varType == null) {
+                            currentNested.addMethodField(new MethodField(ctx.if_statment().statement(j).varDec().varId.getText(), ctx.if_statment().statement(j).varDec().varClassName.getText(), isDefiend.contains(ctx.if_statment().statement(j).varDec().varClassName.getText())));
+                        } else {
+                            currentNested.addMethodField(new MethodField(ctx.if_statment().statement(j).varDec().varId.getText(), ctx.if_statment().statement(j).varDec().varType.getText(), isDefiend.contains(ctx.if_statment().statement(j).varDec().varType.getText())));
+                        }
+                    }
+                }
 
+            } else if (ctx.while_statment() != null) {
+                currentNested = new Nested(ctx.while_statment().getText());
+                currentNested.scopeNumber = ctx.start.getLine();
+                for (int j = 0; j < ctx.while_statment().statement().size(); j++) {
+                    if (ctx.while_statment().statement(j).varDec() != null) {
+                        if (ctx.while_statment().statement(j).varDec().varType == null) {
+                            currentNested.addMethodField(new MethodField(ctx.while_statment().statement(j).varDec().varId.getText(), ctx.while_statment().statement(j).varDec().varClassName.getText(), isDefiend.contains(ctx.while_statment().statement(j).varDec().varClassName.getText())));
+                        } else {
+                            currentNested.addMethodField(new MethodField(ctx.while_statment().statement(j).varDec().varId.getText(), ctx.while_statment().statement(j).varDec().varType.getText(), isDefiend.contains(ctx.while_statment().statement(j).varDec().varType.getText())));
+                        }
+                    }
+                }
+
+            } else if (ctx.for_statment() != null) {
+                currentNested = new Nested(ctx.for_statment().getText());
+                currentNested.scopeNumber = ctx.start.getLine();
+                for (int j = 0; j < ctx.while_statment().statement().size(); j++) {
+                    if (ctx.for_statment().statement(j).varDec() != null) {
+                        if (ctx.for_statment().statement(j).varDec().varType == null) {
+                            currentNested.addMethodField(new MethodField(ctx.for_statment().statement(j).varDec().varId.getText(), ctx.for_statment().statement(j).varDec().varClassName.getText(), isDefiend.contains(ctx.for_statment().statement(j).varDec().varClassName.getText())));
+                        } else {
+                            currentNested.addMethodField(new MethodField(ctx.for_statment().statement(j).varDec().varId.getText(), ctx.for_statment().statement(j).varDec().varType.getText(), isDefiend.contains(ctx.for_statment().statement(j).varDec().varType.getText())));
+                        }
+                    }
+                }
+
+            }
+
+        }
     }
 
     @Override
     public void exitStatement(JythonParser.StatementContext ctx) {
+        if (currentNested != null) {
+            currentNested.printScope();
+            currentNested = null;
+        }
 
     }
 
@@ -249,20 +308,46 @@ public class SymbolTableGenerator implements JythonListener {
     @Override
     public void enterWhile_statment(JythonParser.While_statmentContext ctx) {
 
+        currentConditionalBlock = new ConditionalBlock(ctx.WHILE().getText());
+        currentConditionalBlock.scopeNumber = ctx.start.getLine();
+        for (int j = 0; j < ctx.statement().size(); j++) {
+            if (ctx.statement(j).varDec() != null) {
+                if (ctx.statement(j).varDec().varType == null) {
+                    currentConditionalBlock.addMethodField(new MethodField(ctx.statement(j).varDec().varId.getText(), ctx.statement(j).varDec().varClassName.getText(), isDefiend.contains(ctx.statement(j).varDec().varClassName.getText())));
+                } else {
+                    currentConditionalBlock.addMethodField(new MethodField(ctx.statement(j).varDec().varId.getText(), ctx.statement(j).varDec().varType.getText(), isDefiend.contains(ctx.statement(j).varDec().varType.getText())));
+                }
+            }
+        }
+
     }
 
     @Override
     public void exitWhile_statment(JythonParser.While_statmentContext ctx) {
-
+        currentConditionalBlock.printScope();
+        currentConditionalBlock = null;
     }
 
     @Override
     public void enterIf_else_statment(JythonParser.If_else_statmentContext ctx) {
+        currentConditionalBlock = new ConditionalBlock(ctx.IF().getText());
+        currentConditionalBlock.scopeNumber = ctx.start.getLine();
+        for (int j = 0; j < ctx.statement().size(); j++) {
+            if (ctx.statement(j).varDec() != null) {
+                if (ctx.statement(j).varDec().varType == null) {
+                    currentConditionalBlock.addMethodField(new MethodField(ctx.statement(j).varDec().varId.getText(), ctx.statement(j).varDec().varClassName.getText(), isDefiend.contains(ctx.statement(j).varDec().varClassName.getText())));
+                } else {
+                    currentConditionalBlock.addMethodField(new MethodField(ctx.statement(j).varDec().varId.getText(), ctx.statement(j).varDec().varType.getText(), isDefiend.contains(ctx.statement(j).varDec().varType.getText())));
+                }
+            }
+        }
 
     }
 
     @Override
     public void exitIf_else_statment(JythonParser.If_else_statmentContext ctx) {
+        currentConditionalBlock.printScope();
+        currentConditionalBlock = null;
 
     }
 
@@ -278,12 +363,25 @@ public class SymbolTableGenerator implements JythonListener {
 
     @Override
     public void enterFor_statment(JythonParser.For_statmentContext ctx) {
+        currentConditionalBlock = new ConditionalBlock(ctx.FOR().getText());
+        currentConditionalBlock.scopeNumber = ctx.start.getLine();
+        for (int j = 0; j < ctx.statement().size(); j++) {
+            if (ctx.statement(j).varDec() != null) {
+                if (ctx.statement(j).varDec().varType == null) {
+                    currentConditionalBlock.addMethodField(new MethodField(ctx.statement(j).varDec().varId.getText(), ctx.statement(j).varDec().varClassName.getText(), isDefiend.contains(ctx.statement(j).varDec().varClassName.getText())));
+                } else {
+                    currentConditionalBlock.addMethodField(new MethodField(ctx.statement(j).varDec().varId.getText(), ctx.statement(j).varDec().varType.getText(), isDefiend.contains(ctx.statement(j).varDec().varType.getText())));
+                }
+            }
+        }
+
 
     }
 
     @Override
     public void exitFor_statment(JythonParser.For_statmentContext ctx) {
-
+        currentConditionalBlock.printScope();
+        currentConditionalBlock = null;
     }
 
     @Override

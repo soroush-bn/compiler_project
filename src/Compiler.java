@@ -14,7 +14,7 @@ public class Compiler {
 
 
     public static void main(String[] args) throws IOException {
-        CharStream stream = CharStreams.fromFileName("./sample/input.txt");
+        CharStream stream = CharStreams.fromFileName("./sample/input2.txt");
         JythonLexer lexer = new JythonLexer(stream);
         TokenStream tokens = new CommonTokenStream(lexer);
         JythonParser parser = new JythonParser(tokens);

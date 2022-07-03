@@ -15,7 +15,7 @@ public class Scope {
     }
 
     public Optional<Item> lookup(String id) {
-        return symbolTable.keySet().stream().filter(key -> key.matches(id + "_\\d+_\\d+")).map(symbolTable::get).findFirst();
+        return symbolTable.keySet().stream().filter(key -> key.matches(id)).map(symbolTable::get).findFirst();
     }
 
 

@@ -14,11 +14,9 @@ public final class Method extends Scope implements Item {
 
     public void addParameter(Parameter parameter) {
         parameters.add(parameter);
-        this.insert("Parameter_"+parameter.name,parameter);
     }
     public void addMethodField(MethodField mf) {
         methodFields.add(mf);
-        this.insert("MethodField_"+mf.name,mf);
 
     }
 

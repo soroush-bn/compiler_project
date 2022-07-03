@@ -7,6 +7,8 @@ import org.antlr.v4.runtime.tree.ErrorNode;
 import org.antlr.v4.runtime.tree.TerminalNode;
 
 import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 
 public class SymbolTableGenerator implements JythonListener {
 
@@ -19,9 +21,8 @@ public class SymbolTableGenerator implements JythonListener {
     private ConditionalBlock currentConditionalBlock;
     private Nested currentNested;
 
-    private final String finalResult = "";
     private final ArrayList<String> isDefiend = new ArrayList<>();
-
+    private final List<Error> errors = new ArrayList<>();
 
     @Override
     public void enterProgram(JythonParser.ProgramContext ctx) {
@@ -37,7 +38,9 @@ public class SymbolTableGenerator implements JythonListener {
     @Override
     public void exitProgram(JythonParser.ProgramContext ctx) {
         globalScope.printScope();
-
+        for (Error error : errors) {
+            System.out.println(error);
+        }
     }
 
     @Override
@@ -60,6 +63,12 @@ public class SymbolTableGenerator implements JythonListener {
         isDefiend.add(ctx.className.getText());
         currentClass.scopeNumber = ctx.start.getLine();
         var id = "class_" + ctx.className.getText();
+        Optional<Item> lookup = globalScope.lookup(id);
+        if (lookup.isPresent()) {
+            var e = new Error(Error.Type.CLASS_ALREADY_DEFINED, ctx.start.getLine(), ctx.start.getCharPositionInLine(), List.of(ctx.className.getText()));
+            errors.add(e);
+            id += "_" + ctx.start.getLine() + "_" + ctx.start.getCharPositionInLine();
+        }
         globalScope.insert(id, currentClass);
 
     }
@@ -74,20 +83,39 @@ public class SymbolTableGenerator implements JythonListener {
     public void enterClass_body(JythonParser.Class_bodyContext ctx) {
         ClassField classField = null;
         ClassArrayField classArrayField = null;
+        var fieldType = "";
         if (ctx.varDec() != null) {
             if (ctx.varDec().varType == null) {
-                classField = new ClassField(ctx.varDec().varId.getText(), ctx.varDec().varClassName.getText(), isDefiend.contains(ctx.varDec().varClassName.getText()));
+                fieldType = ctx.varDec().varClassName.getText();
+                classField = new ClassField(ctx.varDec().varId.getText(), fieldType, isDefiend.contains(ctx.varDec().varClassName.getText()));
             } else {
-                classField = new ClassField(ctx.varDec().varId.getText(), ctx.varDec().varType.getText(), isDefiend.contains(ctx.varDec().varType.getText()));
+                fieldType = ctx.varDec().varType.getText();
+                classField = new ClassField(ctx.varDec().varId.getText(), fieldType, isDefiend.contains(ctx.varDec().varType.getText()));
             }
-            currentClass.insert("Field_" + ctx.varDec().varId.getText(), classField);
+            var id = "Field_" + ctx.varDec().varId.getText();
+            Optional<Item> lookup = currentClass.lookup(id);
+            if (lookup.isPresent()) {
+                var e = new Error(Error.Type.FIELD_ALREADY_DEFINED, ctx.start.getLine(), ctx.start.getCharPositionInLine(), List.of(ctx.varDec().getText()));
+                errors.add(e);
+                id += "_" + ctx.start.getLine() + "_" + ctx.start.getCharPositionInLine();
+            }
+            currentClass.insert(id, classField);
+
+
         } else if (ctx.arrayDec() != null) {
             if (ctx.arrayDec().arrType == null) {
                 classArrayField = new ClassArrayField(ctx.arrayDec().arrId.getText(), ctx.arrayDec().arrClassName.getText(), isDefiend.contains(ctx.arrayDec().arrClassName.getText()));
             } else {
                 classArrayField = new ClassArrayField(ctx.arrayDec().arrId.getText(), ctx.arrayDec().arrType.getText(), isDefiend.contains(ctx.arrayDec().arrType.getText()));
             }
-            currentClass.insert("Field_" + ctx.arrayDec().arrId.getText(), classArrayField);
+            var arrId = "Field_" + ctx.arrayDec().arrId.getText();
+            Optional<Item> lookup = currentClass.lookup(arrId);
+            if (lookup.isPresent()) {
+                var e = new Error(Error.Type.FIELD_ALREADY_DEFINED, ctx.start.getLine(), ctx.start.getCharPositionInLine(), List.of(ctx.varDec().getText()));
+                errors.add(e);
+                arrId += "_" + ctx.start.getLine() + "_" + ctx.start.getCharPositionInLine();
+            }
+            currentClass.insert(arrId, classArrayField);
         } else if (ctx.constructor() != null) {
 
 
@@ -140,26 +168,55 @@ public class SymbolTableGenerator implements JythonListener {
         currentMethod.scopeNumber = ctx.start.getLine();
         for (JythonParser.ParameterContext p : ctx.parameter()) {
             for (int i = 0; i < p.varDec().size(); i++) {
-                if (p.varDec(i).varType == null)
-                    currentMethod.addParameter(new Parameter(p.varDec(i).varId.getText(), p.varDec(i).varClassName.getText(), isDefiend.contains(p.varDec(i).varClassName.getText()), i));
-                else
-                    currentMethod.addParameter(new Parameter(p.varDec(i).varId.getText(), p.varDec(i).varType.getText(), isDefiend.contains(p.varDec(i).varType.getText()), i));
+                var parameterId = "Parameter_" + p.varDec(i).varId.getText();
+                Parameter param;
+                if (p.varDec(i).varType == null) {
+                    param = new Parameter(p.varDec(i).varId.getText(), p.varDec(i).varClassName.getText(), isDefiend.contains(p.varDec(i).varClassName.getText()), i);
+                    currentMethod.addParameter(param);
+                } else {
+                    param = new Parameter(p.varDec(i).varId.getText(), p.varDec(i).varType.getText(), isDefiend.contains(p.varDec(i).varType.getText()), i);
+                    currentMethod.addParameter(param);
+                }
+                Optional<Item> lookup = currentMethod.lookup(parameterId);
+                if (lookup.isPresent()) {
+                    var e = new Error(Error.Type.PARAMETER_ALREADY_DEFINED, ctx.start.getLine(), ctx.start.getCharPositionInLine(), List.of(p.varDec(i).varId.getText()));
+                    errors.add(e);
+                    parameterId += "_" + ctx.start.getLine() + "_" + ctx.start.getCharPositionInLine();
+                } currentMethod.insert(parameterId, param);
             }
         }
 
         for (int j = 0; j < ctx.statement().size(); j++) {
             if (ctx.statement(j).varDec() != null) {
+                var fieldId = "MethodField_" + ctx.statement(j).varDec().varId.getText();
+                MethodField methodField;
                 if (ctx.statement(j).varDec().varType == null) {
-                    currentMethod.addMethodField(new MethodField(ctx.statement(j).varDec().varId.getText(), ctx.statement(j).varDec().varClassName.getText(), isDefiend.contains(ctx.statement(j).varDec().varClassName.getText())));
+                    methodField = new MethodField(ctx.statement(j).varDec().varId.getText(), ctx.statement(j).varDec().varClassName.getText(), isDefiend.contains(ctx.statement(j).varDec().varClassName.getText()));
+                    currentMethod.addMethodField(methodField);
                 } else {
-                    currentMethod.addMethodField(new MethodField(ctx.statement(j).varDec().varId.getText(), ctx.statement(j).varDec().varType.getText(), isDefiend.contains(ctx.statement(j).varDec().varType.getText())));
+                    methodField = new MethodField(ctx.statement(j).varDec().varId.getText(), ctx.statement(j).varDec().varType.getText(), isDefiend.contains(ctx.statement(j).varDec().varType.getText()));
+                    currentMethod.addMethodField(methodField);
                 }
+                Optional<Item> lookup = currentMethod.lookup(fieldId);
+                if (lookup.isPresent()) {
+                    var e = new Error(Error.Type.FIELD_ALREADY_DEFINED, ctx.start.getLine(), ctx.start.getCharPositionInLine(), List.of(ctx.statement(j).varDec().varId.getText()));
+                    errors.add(e);
+                    fieldId += "_" + ctx.start.getLine() + "_" + ctx.start.getCharPositionInLine();
+                }
+                currentMethod.insert(fieldId, methodField);
             }
         }
 
 
         if (currentClass != null) {
-            currentClass.insert("Method_" + ctx.methodId, currentMethod);
+            var id = "Method_" + ctx.methodId.getText();
+            Optional<Item> lookup = currentClass.lookup(id);
+            if (lookup.isPresent()) {
+                var e = new Error(Error.Type.METHOD_ALREADY_DEFINED, ctx.start.getLine(), ctx.start.getCharPositionInLine(), List.of(ctx.methodId.getText()));
+                errors.add(e);
+                id += "_" + ctx.start.getLine() + "_" + ctx.start.getCharPositionInLine();
+            }
+            currentClass.insert(id, currentMethod);
         }
 
     }
@@ -189,7 +246,14 @@ public class SymbolTableGenerator implements JythonListener {
             }
         }
         currentConstructor.scopeNumber = ctx.start.getLine();
-        currentClass.insert("Constructor_" + className, currentConstructor);
+        var id = "Constructor_" + className;
+
+        Optional<Item> lookup = currentClass.lookup(id);
+        if (lookup.isPresent()) {
+            var e = new Error(Error.Type.METHOD_ALREADY_DEFINED, ctx.start.getLine(), ctx.start.getCharPositionInLine(), List.of(ctx.CLASSNAME().getText()));
+            errors.add(e);
+        }
+        currentClass.insert(id, currentConstructor);
     }
 
     @Override

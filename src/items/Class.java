@@ -1,6 +1,7 @@
 package items;
 
 import java.util.ArrayList;
+import java.util.Optional;
 
 public final class Class extends Scope implements Item {
     private final ArrayList<ClassField> classFields = new ArrayList<>();
@@ -22,6 +23,15 @@ public final class Class extends Scope implements Item {
         methods.add(method);
     }
 
+    public Optional<Method> getMethodByName(String name ){
+        for (Method m :this.methods
+             ) {
+            if (m.name==name){
+                return Optional.of(m);
+            }
+        }
+        return Optional.empty();
+    }
     @Override
     public String toString() {
         return "Key : Class_" + this.name + " | Value : Class (name:" + this.name + ") (parent: " + this.parent + ")";

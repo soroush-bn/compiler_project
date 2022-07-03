@@ -40,7 +40,9 @@ public final class Method extends Scope implements Item {
     public String getReturnType() {
         return this.returnType;
     }
-
+    public int parameterSize(){
+        return parameters.size();
+    }
     public boolean isClassAvailable(String query) {
         for (Parameter p : this.parameters) {
             if (p.name == query) return true;

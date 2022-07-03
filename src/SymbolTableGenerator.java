@@ -8,6 +8,7 @@ import org.antlr.v4.runtime.tree.TerminalNode;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 public class SymbolTableGenerator implements JythonListener {
@@ -67,6 +68,16 @@ public class SymbolTableGenerator implements JythonListener {
         if (!currentMethod.isClassAvailable(returnExp)) {
             var e = new Error(Error.Type.RETURN_TYPE_NOT_MATCH, startLine, col, feilds);
             errors.add(e);
+        }
+    }
+
+    private void checkMethodCallArgs(String methodName, int argCounts, int startLine, int col, List<String> feilds) {
+        Optional<Method> m = currentClass.getMethodByName(methodName);
+        if (m.isPresent()) {
+            if (m.get().parameterSize() != argCounts) {
+                var e = new Error(Error.Type.MISMATCH_ARGUMENT, startLine, col, feilds);
+                errors.add(e);
+            }
         }
     }
 
@@ -510,7 +521,7 @@ public class SymbolTableGenerator implements JythonListener {
 
     @Override
     public void enterMethod_call(JythonParser.Method_callContext ctx) {
-
+        checkMethodCallArgs(ctx.methodCallId.getText(), ctx.args().explist().exp().size(), ctx.start.getLine(), ctx.start.getCharPositionInLine(), List.of(ctx.ID().getText()));
     }
 
     @Override
@@ -520,7 +531,13 @@ public class SymbolTableGenerator implements JythonListener {
 
     @Override
     public void enterAssignment(JythonParser.AssignmentContext ctx) {
-
+        if (ctx.varDec()==null) return;
+        var leftType = ctx.varDec().varType != null ? ctx.varDec().varType.getText() : ctx.varDec().varClassName.getText();
+        var rightType = ctx.exp().expType.getText();
+        if (!Objects.equals(leftType, rightType)) {
+            var e = new Error(Error.Type.RETURN_TYPE_NOT_MATCH, ctx.start.getLine(), ctx.start.getCharPositionInLine(), List.of(ctx.exp().expType.getText()));
+            errors.add(e);
+        }
     }
 
     @Override

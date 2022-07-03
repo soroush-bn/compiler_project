@@ -32,6 +32,7 @@ class Human(Nothing, Nothing2){
         }
     }
     def bool checkIsHungry(){
+        eat(NONE)
         return true
     }
 }

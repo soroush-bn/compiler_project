@@ -6,6 +6,7 @@ public class Scope {
     protected final LinkedHashMap<String, Item> symbolTable = new LinkedHashMap<>();
     public String name = "no name";
     public int scopeNumber = -1;
+    public Scope parentScope =null ;
 
     public void insert(String id, Item item) {
         symbolTable.put(id, item);

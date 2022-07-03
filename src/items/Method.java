@@ -15,6 +15,7 @@ public final class Method extends Scope implements Item {
     public void addParameter(Parameter parameter) {
         parameters.add(parameter);
     }
+
     public void addMethodField(MethodField mf) {
         methodFields.add(mf);
 
@@ -34,6 +35,20 @@ public final class Method extends Scope implements Item {
             res += p.show();
         }
         return res;
+    }
+
+    public String getReturnType() {
+        return this.returnType;
+    }
+
+    public boolean isClassAvailable(String query) {
+        for (Parameter p : this.parameters) {
+            if (p.name == query) return true;
+        }
+        for (MethodField f : this.methodFields) {
+            if (f.type == query) return true;
+        }
+        return false;
     }
 
     @Override

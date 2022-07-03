@@ -15,7 +15,8 @@ class Human(Nothing, Nothing2){
     def Voice speak(){
         Voice voice
         Voice voice
-        return voice
+        Nose nose
+        return nose
     }
     def Voice speak(){
             Voice voice

@@ -2,7 +2,7 @@ package items;
 
 //input param
 public final class Parameter extends Variable {
-    private final String type;
+    public final String type;
     private final Boolean isDefiend;
     private final int index ;
 

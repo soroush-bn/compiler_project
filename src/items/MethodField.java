@@ -1,7 +1,7 @@
 package items;
 
 public final class MethodField extends Variable {
-    private final String type;
+    public final String type;
     private final Boolean isDefiend;
 
 

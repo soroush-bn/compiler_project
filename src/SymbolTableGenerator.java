@@ -11,7 +11,6 @@ import java.util.List;
 import java.util.Optional;
 
 public class SymbolTableGenerator implements JythonListener {
-
     private final Scope globalScope = new Scope();
     private Class currentClass;
     private Import currentImport;
@@ -23,6 +22,53 @@ public class SymbolTableGenerator implements JythonListener {
 
     private final ArrayList<String> isDefiend = new ArrayList<>();
     private final List<Error> errors = new ArrayList<>();
+
+    private void checkClassDefiend(Variable v, int startLine, int col, List<String> feilds) {
+        if (v instanceof ClassField) {
+            if (!isDefiend.contains(((ClassField) v).type)) {
+                var e = new Error(Error.Type.CLASS_NOT_FOUND, startLine, col, feilds);
+                errors.add(e);
+            }
+        } else if (v instanceof MethodField) {
+            if (!isDefiend.contains(((MethodField) v).type)) {
+                var e = new Error(Error.Type.CLASS_NOT_FOUND, startLine, col, feilds);
+                errors.add(e);
+            }
+        } else if (v instanceof ClassArrayField) {
+            if (!isDefiend.contains(((ClassArrayField) v).type)) {
+                var e = new Error(Error.Type.CLASS_NOT_FOUND, startLine, col, feilds);
+                errors.add(e);
+            }
+        } else if (v instanceof Parameter) {
+            if (!isDefiend.contains(((Parameter) v).type)) {
+                var e = new Error(Error.Type.CLASS_NOT_FOUND, startLine, col, feilds);
+                errors.add(e);
+            }
+        }
+
+    }
+
+    private void checkVariableDefiend(String id, Scope scope, int startLine, int col, List<String> feilds) {
+        Optional<Item> lookup = scope.lookup(id);
+        if (lookup.isPresent()) {
+            return;
+        } else if (!lookup.isPresent()) {
+            while (scope.parentScope != null) {
+                scope = scope.parentScope;
+                lookup = scope.lookup(id);
+                if (lookup.isPresent()) return;
+            }
+        }
+        var e = new Error(Error.Type.VAR_NOT_FOUND, startLine, col, feilds);
+        errors.add(e);
+    }
+
+    private void checkReturnType(String returnExp, int startLine, int col, List<String> feilds) {
+        if (!currentMethod.isClassAvailable(returnExp)) {
+            var e = new Error(Error.Type.RETURN_TYPE_NOT_MATCH, startLine, col, feilds);
+            errors.add(e);
+        }
+    }
 
     @Override
     public void enterProgram(JythonParser.ProgramContext ctx) {
@@ -62,6 +108,7 @@ public class SymbolTableGenerator implements JythonListener {
         currentClass = new Class(ctx.className.getText(), ctx.classParent.getText() + "," + ctx.classParent2.getText());
         isDefiend.add(ctx.className.getText());
         currentClass.scopeNumber = ctx.start.getLine();
+        currentClass.parentScope = globalScope;
         var id = "class_" + ctx.className.getText();
         Optional<Item> lookup = globalScope.lookup(id);
         if (lookup.isPresent()) {
@@ -87,11 +134,12 @@ public class SymbolTableGenerator implements JythonListener {
         if (ctx.varDec() != null) {
             if (ctx.varDec().varType == null) {
                 fieldType = ctx.varDec().varClassName.getText();
-                classField = new ClassField(ctx.varDec().varId.getText(), fieldType, isDefiend.contains(ctx.varDec().varClassName.getText()));
             } else {
                 fieldType = ctx.varDec().varType.getText();
-                classField = new ClassField(ctx.varDec().varId.getText(), fieldType, isDefiend.contains(ctx.varDec().varType.getText()));
             }
+            classField = new ClassField(ctx.varDec().varId.getText(), fieldType, isDefiend.contains(fieldType));
+            checkClassDefiend(classField, ctx.start.getLine(), ctx.start.getCharPositionInLine(), List.of(ctx.varDec().getText()));
+
             var id = "Field_" + ctx.varDec().varId.getText();
             Optional<Item> lookup = currentClass.lookup(id);
             if (lookup.isPresent()) {
@@ -108,6 +156,7 @@ public class SymbolTableGenerator implements JythonListener {
             } else {
                 classArrayField = new ClassArrayField(ctx.arrayDec().arrId.getText(), ctx.arrayDec().arrType.getText(), isDefiend.contains(ctx.arrayDec().arrType.getText()));
             }
+            checkClassDefiend(classArrayField, ctx.start.getLine(), ctx.start.getCharPositionInLine(), List.of(ctx.arrayDec().getText()));
             var arrId = "Field_" + ctx.arrayDec().arrId.getText();
             Optional<Item> lookup = currentClass.lookup(arrId);
             if (lookup.isPresent()) {
@@ -166,6 +215,7 @@ public class SymbolTableGenerator implements JythonListener {
         if (ctx.methodType != null) currentMethod = new Method(ctx.methodId.getText(), ctx.methodType.getText());
         else currentMethod = new Method(ctx.methodId.getText(), ctx.VOID().getText());
         currentMethod.scopeNumber = ctx.start.getLine();
+        currentMethod.parentScope = currentClass != null ? currentClass : globalScope;
         for (JythonParser.ParameterContext p : ctx.parameter()) {
             for (int i = 0; i < p.varDec().size(); i++) {
                 var parameterId = "Parameter_" + p.varDec(i).varId.getText();
@@ -177,12 +227,14 @@ public class SymbolTableGenerator implements JythonListener {
                     param = new Parameter(p.varDec(i).varId.getText(), p.varDec(i).varType.getText(), isDefiend.contains(p.varDec(i).varType.getText()), i);
                     currentMethod.addParameter(param);
                 }
+                checkClassDefiend(param, ctx.start.getLine(), ctx.start.getCharPositionInLine(), List.of(p.varDec(i).varId.getText()));
                 Optional<Item> lookup = currentMethod.lookup(parameterId);
                 if (lookup.isPresent()) {
                     var e = new Error(Error.Type.PARAMETER_ALREADY_DEFINED, ctx.start.getLine(), ctx.start.getCharPositionInLine(), List.of(p.varDec(i).varId.getText()));
                     errors.add(e);
                     parameterId += "_" + ctx.start.getLine() + "_" + ctx.start.getCharPositionInLine();
-                } currentMethod.insert(parameterId, param);
+                }
+                currentMethod.insert(parameterId, param);
             }
         }
 
@@ -197,6 +249,8 @@ public class SymbolTableGenerator implements JythonListener {
                     methodField = new MethodField(ctx.statement(j).varDec().varId.getText(), ctx.statement(j).varDec().varType.getText(), isDefiend.contains(ctx.statement(j).varDec().varType.getText()));
                     currentMethod.addMethodField(methodField);
                 }
+                checkClassDefiend(methodField, ctx.start.getLine(), ctx.start.getCharPositionInLine(), List.of(ctx.statement(j).varDec().varId.getText()));
+
                 Optional<Item> lookup = currentMethod.lookup(fieldId);
                 if (lookup.isPresent()) {
                     var e = new Error(Error.Type.FIELD_ALREADY_DEFINED, ctx.start.getLine(), ctx.start.getCharPositionInLine(), List.of(ctx.statement(j).varDec().varId.getText()));
@@ -239,13 +293,19 @@ public class SymbolTableGenerator implements JythonListener {
         currentConstructor = new Constructor(className);
         for (JythonParser.ParameterContext p : ctx.parameter()) {
             for (int i = 0; i < p.varDec().size(); i++) {
-                if (p.varDec(i).varType == null)
-                    currentConstructor.addParameter(new Parameter(p.varDec(i).varId.getText(), p.varDec(i).varClassName.getText(), isDefiend.contains(p.varDec(i).varClassName.getText()), i));
-                else
-                    currentConstructor.addParameter(new Parameter(p.varDec(i).varId.getText(), p.varDec(i).varType.getText(), isDefiend.contains(p.varDec(i).varType.getText()), i));
+                Parameter param;
+                if (p.varDec(i).varType == null) {
+                    param = new Parameter(p.varDec(i).varId.getText(), p.varDec(i).varClassName.getText(), isDefiend.contains(p.varDec(i).varClassName.getText()), i);
+                    currentConstructor.addParameter(param);
+                } else {
+                    param = new Parameter(p.varDec(i).varId.getText(), p.varDec(i).varType.getText(), isDefiend.contains(p.varDec(i).varType.getText()), i);
+                    currentConstructor.addParameter(param);
+                }
+                checkClassDefiend(param, ctx.start.getLine(), ctx.start.getCharPositionInLine(), List.of(p.varDec(i).varId.getText()));
             }
         }
         currentConstructor.scopeNumber = ctx.start.getLine();
+        currentConstructor.parentScope = currentClass != null ? currentClass : globalScope;
         var id = "Constructor_" + className;
 
         Optional<Item> lookup = currentClass.lookup(id);
@@ -331,7 +391,7 @@ public class SymbolTableGenerator implements JythonListener {
 
     @Override
     public void enterReturn_statment(JythonParser.Return_statmentContext ctx) {
-
+        checkReturnType(ctx.exp().getText(), ctx.start.getLine(), ctx.start.getCharPositionInLine(), List.of(ctx.exp().getText()));
     }
 
     @Override
